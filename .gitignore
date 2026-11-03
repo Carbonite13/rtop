@@ -1,0 +1,12 @@
+# cache
+__pycache__/
+*.pyc
+
+# secure variables
+.env
+
+# virtual environment files
+.venv/
+
+# ignore poetry files
+poetry.lock

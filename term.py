@@ -8,6 +8,7 @@ from requests.exceptions import ConnectionError
 from sys import argv
 from pathlib import Path
 import logging
+from threading import Timer
 
 from urllib.parse import urlsplit, urlunsplit
 
@@ -39,6 +40,11 @@ class Colors:
     YELLOW = 1
     RED = 2
     ORANGE = 3
+
+
+class ErrorWindow:
+    def __init__(self, stdscr):
+        pass
 
 
 class APIExplorer:
@@ -122,65 +128,6 @@ class APIExplorer:
             curses.init_pair(2, -1, Colors.YELLOW)
 
     # Error bar construction and writing into it
-    def _construct_error_bar(
-        self,
-    ) -> None:
-        """
-        Construct the error window, inside the parent window,
-        initialise only after the parent element has been constructed
-        """
-
-        if not isinstance(self.stdscr, curses.window):
-            raise TypeError(
-                "Make sure the parent window is initialised, _construct_error_bar()"
-            )
-
-        if not self.height or not self.width:
-            raise ValueError("Height and width not set for error bar parent element")
-
-        # properties of the error window
-        self.err_win_height = 1
-        self.err_win_width = self.width
-        self.err_win_lt = (
-            self.height
-            - self.err_win_height,  # height = parent height - error window height
-            0,  # width = left top edge = 0 x-axis
-        )
-
-        self.err_win_br = (
-            self.height,
-            self.width,
-        )
-
-        # error window instance
-        self.err_win = self.stdscr.derwin(
-            self.err_win_height,
-            self.err_win_width,
-            self.err_win_lt[0],
-            self.err_win_lt[1],
-        )
-
-        self.err_win.erase()
-        self.err_win.clear()
-        self.err_win.refresh()
-        self.err_win.noutrefresh()
-        self.stdscr.refresh()
-
-    def write_error(
-        self,
-        msg: str,
-        *,
-        timeout: int = 3000,
-    ):
-        self.err_win.clear()
-        self.err_win.addstr(0, 0, msg, 0)
-        self.err_win.refresh()
-
-        # self.err_win.timeout(timeout)
-        self.err_win.getch()
-        self.err_win.clear()
-        self.err_win.refresh()
-
     @staticmethod
     def _configure_curses():
         """Curses global configuration, all in one place"""
@@ -243,9 +190,14 @@ class APIExplorer:
             curses.ACS_LRCORNER,
         )
         key_win.addstr(1, 1, "000")
-        self._construct_error_bar()
-        self.write_error("something")
         key_win.refresh()
+
+        err_win = curses.newwin(3, self.width, self.height - 3, 0)
+        err_win.keypad(False)
+        err_win.leaveok(True)
+        err_win_p = cp.new_panel(err_win)
+        err_win_p.hide()
+
         stdscr.refresh()
 
         try:
@@ -259,9 +211,6 @@ class APIExplorer:
                 else:
                     key_win.addstr(1, 1, f"{_key}", curses.color_pair(1))
                     key_win.refresh()
-                    self.write_error(
-                        f"the user pressed key {_key} char: {chr(_key)} hex: {hex(_key)}"
-                    )
         except KeyboardInterrupt:
             pass
 
