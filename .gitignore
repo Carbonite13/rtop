@@ -10,3 +10,7 @@ __pycache__/
 
 # ignore poetry files
 poetry.lock
+
+# editor configuration files
+languages.toml
+
