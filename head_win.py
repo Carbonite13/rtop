@@ -27,8 +27,8 @@ class HeaderWindow:
         self._win = curses.newwin(h, w, y, x)
         self._panel = cp.new_panel(self._win)
         self.header = heading
-        self._head_color_pair = 32
-        self._value_color_pair = 46
+        self._head_color_pair = 16
+        self._value_color_pair = 2
         self.error_win = error_win
 
         # writing trackers
@@ -44,7 +44,9 @@ class HeaderWindow:
             self._win.border()
 
         # define colors
-        curses.init_pair(self._head_color_pair, -1, -1)
+        curses.start_color()
+        curses.use_default_colors()
+        curses.init_pair(self._head_color_pair, curses.COLOR_WHITE, -1)
         curses.init_pair(self._value_color_pair, curses.COLOR_GREEN, -1)
 
         self.write(self.header)
@@ -85,3 +87,7 @@ class HeaderWindow:
             self._win.refresh()
             cp.update_panels()
             curses.doupdate()
+
+    def cleanup(self):
+        self._win.clear()
+        self._win.refresh()

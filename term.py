@@ -1,11 +1,13 @@
 import logging
 
 import curses
+import curses.panel as cp
+from typing import Callable
 
 from error_win import ErrorWindow, Timeout
 from head_win import HeaderWindow
-
-logger = logging.getLogger(__name__)
+from main_win import MainWindow
+from utils import parse_openapi, fetch_json
 
 
 class SpecialChar:
@@ -30,80 +32,79 @@ class Colors:
     ORANGE = 3
 
 
+class WindowTheme:
+    """Define theme for the window"""
+
+
 class APIExplorer:
     """All internal methods are prepended by underscore"""
 
-    def __init__(self, logger: logging.Logger):
-        self.logger = logger
+    def __init__(self):
+        """Initialise the window and measurements"""
 
-        # the wrapper implicitely instantiates the terminal screen
-        # so no need to pass the screen to main explicitely
-        try:
-            self._configure_curses()
-            self._init_colors()
-            curses.wrapper(self.main)
-        except Exception as tui_error:
-            logger.critical(f"Failed to initialize TUI\nError: {str(tui_error)}")
-            raise tui_error
-            exit(1)
+        # coordinates
+        self.x: int = 0
+        self.y: int = 0
 
-        self.height: int
-        self.width: int
-        self.stdscr: curses.window
+        # windows
+        self.stdscr: curses.window = curses.initscr()
+
+        # dimensions
+        self.h, self.w = self.stdscr.getmaxyx()
+
+        # initializers
+        self.__init_curses()
+
+        # initialise panels
+        self._err_h, self._err_w = 3, self.w
+        self._err = ErrorWindow(self._err_h, self._err_w, self.h - self._err_h, 0)
+
+    """Internal functions and methods"""
+
+    def __init_curses(self):
+        curses.noecho()
+        curses.curs_set(False)
+        curses.cbreak()
+
+    """Static methods"""
 
     @staticmethod
     def _rgb(r: int, g: int, b: int) -> tuple[int, int, int]:
-        """Scale the given rgb value(0-255) into Channel scaled values (0-1000)"""
-        return (int(round(x * 1000 / 255, -2)) for x in (r, g, b))  # pyright: ignore
+        return tuple(round(x * 1000 / 255) for x in [r, g, b])  # pyright: ignore
 
-    def _init_colors(self):
-        """Initialize all colors"""
-        curses.start_color()
-        curses.use_default_colors()  # pre-initialise to use default colors
-        if curses.can_change_color():
+    """Core functions"""
 
-            # initialise colors
-            curses.init_color(Colors.RED, *self._rgb(245, 20, 20))
-            curses.init_color(Colors.ORANGE, *self._rgb(245, 144, 20))
-            curses.init_color(Colors.YELLOW, *self._rgb(100, 100, 12))
-
-            curses.init_pair(0, -1, -1)
-            curses.init_pair(1, Colors.YELLOW, -1)
-            curses.init_pair(2, -1, Colors.YELLOW)
-
-    # Error bar construction and writing into it
-    @staticmethod
-    def _configure_curses():
-        """Curses global configuration, all in one place"""
-        curses.initscr()
-        curses.curs_set(False)
-        curses.mousemask(curses.ALL_MOUSE_EVENTS | curses.REPORT_MOUSE_POSITION)
-
-    def main(self, stdscr: curses.window):
-        """The main event loop for the application"""
-
-        # update the heigh and width
-        self.stdscr = stdscr
-        self.height, self.width = stdscr.getmaxyx()
-
-        stdscr.keypad(True)
-        stdscr.addstr(0, 4, "Heading")
-        stdscr.refresh()
-
-        head = HeaderWindow(3, self.width, 0, 0, heading="OpenAPI: 0.3.1")
-
-        err = ErrorWindow(3, self.width, self.height - 3, 0, source="main")
-
-        stdscr.refresh()
-
+    def main(
+        self,
+    ):
         try:
-            while 1:
-                if (_key := stdscr.getch()) in [ord(x) for x in "qQ"]:
-                    break
-                else:
-                    err.write(f"Another error {_key}", timeout=Timeout.LONG)
-        except KeyboardInterrupt:
-            pass
+            # fetch the data
+            content = fetch_json("./openapi.json", file=True, url=False)
+            info, paths = parse_openapi(content)
+            self._head = HeaderWindow(
+                3, self.w, 0, 0, heading=f"OpenAPI: {content['openapi']}"
+            )
+
+            self._main = MainWindow(
+                self.h - 3,  # total height - header height
+                self.w,  # parent width
+                3,  # start at ending position of header
+                0,  # start at 0
+            )
+            self._main.show(paths)
+
+        except Exception as e:
+            self._err.write(str(e))
+
+        finally:
+            # cleanup actions
+            self._head.cleanup()
+            self._main.cleanup()
+            self._err.cleanup()
+            cp.update_panels()
+            self.stdscr.refresh()
+            curses.curs_set(True)
 
 
-APIExplorer(logger=logger)
+f = APIExplorer()
+f.main()

@@ -36,6 +36,7 @@ class ErrorWindow:
         self.y = y
         self.x = x
 
+        curses.start_color()
         self.fg, self.bg = fg, bg
         self._pair = min(pair_id, curses.COLOR_PAIRS - 1)
         self._timer: threading.Timer | None = None
@@ -108,3 +109,7 @@ class ErrorWindow:
         if self._timer:
             self._timer.cancel()
             self._timer = None
+
+    def cleanup(self):
+        self._win.clear()
+        self._win.refresh()
