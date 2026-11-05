@@ -4,6 +4,8 @@ import curses
 import curses.panel as cp
 from typing import Callable
 
+from pydantic_core.core_schema import ErrorType
+
 from error_win import ErrorWindow, Timeout
 from head_win import HeaderWindow
 from main_win import MainWindow
@@ -16,24 +18,6 @@ class SpecialChar:
     FULL_BLOCK_SOLID = chr(0x2588)
     FULL_BLOCK_SHADE = chr(0x2591)
     CENTRE_DOT = chr(0x25E6)
-
-
-class Status:
-    """Status bar status identification constants"""
-
-    ERROR = 1
-    WARNING = 2
-    INFO = 3
-
-
-class Colors:
-    YELLOW = 1
-    RED = 2
-    ORANGE = 3
-
-
-class WindowTheme:
-    """Define theme for the window"""
 
 
 class APIExplorer:
@@ -66,12 +50,6 @@ class APIExplorer:
         curses.curs_set(False)
         curses.cbreak()
 
-    """Static methods"""
-
-    @staticmethod
-    def _rgb(r: int, g: int, b: int) -> tuple[int, int, int]:
-        return tuple(round(x * 1000 / 255) for x in [r, g, b])  # pyright: ignore
-
     """Core functions"""
 
     def main(
@@ -79,7 +57,9 @@ class APIExplorer:
     ):
         try:
             # fetch the data
-            content = fetch_json("./openapi.json", file=True, url=False)
+            content = fetch_json(
+                "http://0.0.0.0:8080/openapi.json",
+            )
             info, paths = parse_openapi(content)
             self._head = HeaderWindow(
                 3, self.w, 0, 0, heading=f"OpenAPI: {content['openapi']}"
@@ -90,6 +70,7 @@ class APIExplorer:
                 self.w,  # parent width
                 3,  # start at ending position of header
                 0,  # start at 0
+                error_win=self._err,
             )
             self._main.show(paths)
 
@@ -98,9 +79,11 @@ class APIExplorer:
 
         finally:
             # cleanup actions
-            self._head.cleanup()
-            self._main.cleanup()
-            self._err.cleanup()
+            for item in ["_" + name for name in ["head", "err", "main"]]:
+                if hasattr(self, item):
+                    getattr(self, item).cleanup()
+
+            # restore terminal
             cp.update_panels()
             self.stdscr.refresh()
             curses.curs_set(True)

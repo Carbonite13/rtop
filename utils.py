@@ -13,17 +13,21 @@ import logging
 
 from error_win import ErrorWindow
 
-OPENAPI_VERSION = re.compile(r"3\.1\.[1-3]")
+OPENAPI_VERSION = re.compile(r"3\.1\.[0-3]")
 
 
 def fetch_json(
     src: str,
-    *,
-    url: bool = True,
-    file: bool = False,
 ) -> dict[str, Any]:
-    if not url and not file:
-        raise ValueError("Either of the flags should be set `url` or `file`")
+
+    url = file = False
+
+    if src.startswith((".", "./", "~/", "/", "../")):
+        file = True
+    elif src.startswith(("https", "http")):
+        url = True
+    else:
+        raise TypeError("Failed to extrace resource")
 
     # validate the source for the mentioned type
     # by default, the source is treated as a  network resource and will

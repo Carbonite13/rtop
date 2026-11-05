@@ -4,6 +4,7 @@ import curses.panel as cp
 from typing import Optional, Any
 import openapi_pydantic as op
 
+from theme import DARK as theme
 from error_win import ErrorWindow
 
 __all__ = ["MainWindow"]
@@ -19,7 +20,7 @@ class MainWindow:
         content: Any = None,
         *,
         border: bool = False,
-        error_win: Optional[ErrorWindow] = None,
+        error_win: ErrorWindow | None = None,
     ):
         self.h, self.w, self.y, self.x = h, w, y, x
         self._border = border
@@ -27,6 +28,15 @@ class MainWindow:
         self._content = content
         self._win = curses.newwin(h, w, y, x)
         self._panel = cp.new_panel(self._win)
+        self._err = error_win
+
+        self.listed_routes: dict[int, str] = {}
+        self.start = 0
+        self.window_size = 5
+        self.selection = 0  # default selection: first element
+
+        self.top, self.left = 0, 1
+        self.top_init, self.left_init = 0, 1
 
         if self._border:
             self._win.border()
@@ -36,52 +46,92 @@ class MainWindow:
     def show(self, paths: dict[str, op.PathItem]):
         # extract the routes
         routes = list(paths.keys())
-        cols = {
+        self.cols = {
             "Route": max(1 + max([len(x) for x in routes]) + 1, "route".__len__()),
             "Method": max("DELETE".__len__() + 2, "method".__len__()),
         }
+        cols = self.cols
 
         # cover the line with block character
-        self._win.attron(curses.A_REVERSE)
-        self._win.hline(0, 0, " ", self.w)
-        self._win.attroff(curses.A_REVERSE)
+        # self._win.attron(curses.A_REVERSE)
+        # self._win.hline(0, 0, " ", self.w)
+        # self._win.attroff(curses.A_REVERSE)
 
         # header showcasing
-        left, top = 1, 0
         for col_name, col_width in cols.items():
             header = col_name.ljust(col_width)
             self._win.addstr(
-                top,
-                left,
+                self.top,
+                self.left,
                 header,
-                curses.A_BOLD | curses.A_REVERSE,
+                curses.A_BOLD | theme.error.attr,
             )
-            left += col_width
-        top += 1
+            self.left += col_width
+        self.top += 1
 
         self._win.refresh()
         cp.update_panels()
         curses.doupdate()
 
-        listed_routes: dict[int, str] = {}
-
         # size calculations
         for i, route in enumerate(routes):
-            self._win.addstr(top, 1, route.ljust(cols["Route"]))
-            listed_routes[i] = route
-            top += 1
+            self._win.addstr(self.top, 1, route.ljust(cols["Route"]))
+            self.listed_routes[i] = route
+            self.top += 1
         else:
-            # refresh to update changes
-            self._win.refresh()
+            _ = len(self.listed_routes)
+            self.window_size = min(_, self.h - 2)
+            self.top = self.top_init + 1  # reset pointer
+            self.select(self.selection)
 
         while 1:
-            _key = self._win.getch()
-            if _key in [ord(x) for x in "qQ"]:
-                break
-            elif _key == curses.KEY_UP:
-                pass
-            elif _key == curses.KEY_DOWN:
-                pass
+            try:
+                _key = self._win.getch()
+                if _key in [ord(x) for x in "qQ"]:
+                    break
+                elif _key == curses.KEY_UP:
+                    self.selection = (
+                        (self.selection - 1) % self.window_size
+                        if self.selection > 0
+                        else 0
+                    )
+                    self.select(self.selection)
+                elif _key == curses.KEY_DOWN:
+                    self.selection = (
+                        (self.selection + 1) % self.window_size
+                        if self.selection < self.window_size
+                        else self.window_size
+                    )
+                    self.select(self.selection)
+                elif _key in (curses.KEY_ENTER, 10, 13):
+                    self.info_panel(0)
+                else:
+                    self._err.write(  # type: ignore
+                        f"key:{curses.keyname(_key).decode()} ? {_key in (curses.KEY_ENTER, 10, 13)}"
+                    )
+            except Exception as e:
+                self._err.write(str(e))  # pyright: ignore
+
+    def select(self, index):
+        # mark the selected one
+        for i, path in self.listed_routes.items():
+            self._win.addstr(
+                self.top,
+                self.left_init,
+                path.ljust(self.cols["Route"]),
+                curses.A_REVERSE if i == self.selection else 0,
+            )
+            self.top += 1
+        self.top = self.top_init + 1
+        self.redraw()
+
+    def info_panel(self, index):
+        raise ValueError("Feature yet to be developed")
+
+    def redraw(self):
+        self._win.refresh()
+        cp.update_panels()
+        curses.doupdate()
 
     def cleanup(self):
         self._win.erase()
