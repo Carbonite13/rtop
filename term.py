@@ -1,4 +1,8 @@
+#!/usr/bin/env python
 import logging
+import argparse as args
+from sys import argv, stdout, stdin
+import termios
 
 import curses
 import curses.panel as cp
@@ -10,6 +14,10 @@ from error_win import ErrorWindow, Timeout
 from head_win import HeaderWindow
 from main_win import MainWindow
 from utils import parse_openapi, fetch_json
+from utils import build_parser
+
+parser = build_parser()
+_args = parser.parse_args(argv[1:])
 
 
 class SpecialChar:
@@ -56,9 +64,11 @@ class APIExplorer:
         self,
     ):
         try:
+
+            self._except = 0
             # fetch the data
             content = fetch_json(
-                "http://0.0.0.0:8080/openapi.json",
+                _args.url or _args.file,
             )
             info, paths = parse_openapi(content)
             self._head = HeaderWindow(
@@ -75,9 +85,17 @@ class APIExplorer:
             self._main.show(paths)
 
         except Exception as e:
+            self._except = 1
             self._err.write(str(e))
 
         finally:
+            # provide a user friendly error so as what happened/
+            # describe the error
+            if self._except:
+                self.stdscr.getch()
+
+            self._err._cancel()
+
             # cleanup actions
             for item in ["_" + name for name in ["head", "err", "main"]]:
                 if hasattr(self, item):
@@ -87,7 +105,17 @@ class APIExplorer:
             cp.update_panels()
             self.stdscr.refresh()
             curses.curs_set(True)
+            curses.nl()
+            curses.endwin()
 
 
-f = APIExplorer()
-f.main()
+if __name__ == "__main__":
+    # save state
+    fd = stdin.fileno()
+    saved = termios.tcgetattr(fd)
+
+    try:
+        f = APIExplorer()
+        f.main()
+    finally:
+        termios.tcsetattr(fd, termios.TCSADRAIN, saved)

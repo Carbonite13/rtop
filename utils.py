@@ -1,4 +1,5 @@
 from typing import Any
+import argparse
 
 from urllib.parse import urlsplit, urlunsplit
 from requests import get
@@ -27,7 +28,7 @@ def fetch_json(
     elif src.startswith(("https", "http")):
         url = True
     else:
-        raise TypeError("Failed to extrace resource")
+        raise TypeError("Failed to extract resource")
 
     # validate the source for the mentioned type
     # by default, the source is treated as a  network resource and will
@@ -76,3 +77,19 @@ def parse_openapi(
     info: op.Info = content.info
 
     return (info, paths)
+
+
+def build_parser() -> argparse.ArgumentParser:
+    """Parse command line arguments"""
+    p = argparse.ArgumentParser(
+        prog="API Explorer",
+        description="test and debug api paths from the terminal interface",
+        epilog="explore -u http://localhost:80",
+    )
+
+    src_grp = p.add_mutually_exclusive_group(required=True)
+    src_grp.add_argument("-u", "--url", help="base url for fetching the routes info")
+    src_grp.add_argument("-f", "--file", help="OpenAPI compatible JSON file")
+    p.add_argument("-t", "--theme", help="theme file to use")
+    p.add_argument("--version", action="version", version="1.0.0")
+    return p
