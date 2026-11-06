@@ -14,4 +14,6 @@ poetry.lock
 # editor configuration files
 languages.toml
 
+# local testing files
 server.py
+openapi.json
