@@ -56,6 +56,14 @@ class APIExplorer:
 
         # initialise panels
         self._err_h, self._err_w = 3, self.w
+
+        def on_error_hide():
+            # Repaint components underneath the error window to restore covered content
+            if hasattr(self, "_main") and not self._main.is_busy():
+                self._main.redraw()
+                if hasattr(self._main, "_list"):
+                    self._main._list.draw()
+
         self._err = ErrorWindow(
             self._err_h,
             self._err_w,
@@ -63,6 +71,7 @@ class APIExplorer:
             0,
             fg=self.theme.error.fg if self.theme.error.fg != -1 else curses.COLOR_RED,
             bg=self.theme.error.bg if self.theme.error.bg != -1 else curses.COLOR_BLACK,
+            on_hide=on_error_hide,
         )
 
         # daemon poller controls

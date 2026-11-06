@@ -3,7 +3,7 @@ import curses.panel as cp
 
 from enum import Enum
 import threading
-from typing import overload
+from typing import overload, Callable, Optional
 import textwrap
 
 
@@ -29,12 +29,14 @@ class ErrorWindow:
         fg: int = curses.COLOR_RED,
         bg: int = curses.COLOR_BLACK,
         pair_id: int = 60,
+        on_hide: Optional[Callable[[], None]] = None,
     ) -> None:
 
         self.h = h
         self.w = w
         self.y = y
         self.x = x
+        self.on_hide = on_hide
 
         curses.start_color()
         self.fg, self.bg = fg, bg
@@ -82,6 +84,11 @@ class ErrorWindow:
             self._panel.hide()
             cp.update_panels()
             curses.doupdate()
+            if self.on_hide:
+                try:
+                    self.on_hide()
+                except Exception:
+                    pass
 
     def _paint(self, msg: str) -> None:
         h, w = self._win.getmaxyx()
