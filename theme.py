@@ -170,28 +170,101 @@ def parse_theme_dict(data: dict[str, Any]) -> Theme:
     return theme
 
 
+import os
+from pathlib import Path
+
+
+def get_config_dir() -> Path:
+    """Return platform-specific user config directory (~/.config/rtop on Unix, %APPDATA%/rtop on Windows)."""
+    if os.name == "nt":
+        appdata = os.environ.get("APPDATA")
+        if appdata:
+            return Path(appdata) / "rtop"
+        return Path.home() / "AppData" / "Roaming" / "rtop"
+    # Unix / Linux / macOS (XDG Base Directory compliant)
+    xdg_config = os.environ.get("XDG_CONFIG_HOME")
+    if xdg_config:
+        return Path(xdg_config) / "rtop"
+    return Path.home() / ".config" / "rtop"
+
+
+def find_theme_file(source: str | Path) -> Path | None:
+    """Resolve a theme file searching in:
+    1. Direct file path as provided
+    2. Local working directory (cwd)
+    3. User global config directory (~/.config/rtop/ or %APPDATA%/rtop/)
+    4. Package-bundled themes/ directory
+    Preference order: local working directory > global config directory > bundled themes.
+    """
+    path = Path(source)
+    # Direct path exists
+    if path.is_file():
+        return path
+
+    extensions = [".yaml", ".yml", ".json"]
+    name = str(source)
+
+    # 1. Local working directory
+    cwd = Path.cwd()
+    if (cwd / name).is_file():
+        return cwd / name
+    for ext in extensions:
+        candidate = cwd / f"{name}{ext}"
+        if candidate.is_file():
+            return candidate
+    local_themes = cwd / "themes"
+    if local_themes.is_dir():
+        if (local_themes / name).is_file():
+            return local_themes / name
+        for ext in extensions:
+            candidate = local_themes / f"{name}{ext}"
+            if candidate.is_file():
+                return candidate
+
+    # 2. Global user config directory (~/.config/rtop/ or %APPDATA%/rtop/)
+    config_dir = get_config_dir()
+    if config_dir.is_dir():
+        if (config_dir / name).is_file():
+            return config_dir / name
+        for ext in extensions:
+            candidate = config_dir / f"{name}{ext}"
+            if candidate.is_file():
+                return candidate
+        global_themes = config_dir / "themes"
+        if global_themes.is_dir():
+            if (global_themes / name).is_file():
+                return global_themes / name
+            for ext in extensions:
+                candidate = global_themes / f"{name}{ext}"
+                if candidate.is_file():
+                    return candidate
+
+    # 3. Package bundled themes/ directory
+    pkg_themes = Path(__file__).resolve().parent / "themes"
+    if pkg_themes.is_dir():
+        if (pkg_themes / name).is_file():
+            return pkg_themes / name
+        for ext in extensions:
+            candidate = pkg_themes / f"{name}{ext}"
+            if candidate.is_file():
+                return candidate
+
+    return None
+
+
 def load_theme(source: str | Path | None) -> Theme:
-    """Load a theme from a file path, theme name (in ./themes/), or fallback to default."""
+    """Load a theme with preference: local cwd > user global config (~/.config/rtop) > package bundled."""
     if not source:
         return get_default_theme()
 
-    path = Path(source)
-    if not path.is_file():
-        # Check in themes/ directory relative to this package
-        pkg_dir = Path(__file__).resolve().parent
-        for ext in [".yaml", ".yml", ".json"]:
-            candidate = pkg_dir / "themes" / f"{source}{ext}"
-            if candidate.is_file():
-                path = candidate
-                break
-
-    if not path.is_file():
+    resolved_path = find_theme_file(source)
+    if not resolved_path:
         raise FileNotFoundError(f"Theme file not found: {source}")
 
-    content = path.read_text(encoding="utf-8")
-    if path.suffix in [".yaml", ".yml"]:
+    content = resolved_path.read_text(encoding="utf-8")
+    if resolved_path.suffix in [".yaml", ".yml"]:
         data = yaml.safe_load(content)
-    elif path.suffix == ".json":
+    elif resolved_path.suffix == ".json":
         data = json.loads(content)
     else:
         # Try YAML (which also accepts JSON)
@@ -201,12 +274,21 @@ def load_theme(source: str | Path | None) -> Theme:
             data = json.loads(content)
 
     if not isinstance(data, dict):
-        raise ValueError(f"Invalid theme format in {path}: root must be a mapping")
+        raise ValueError(f"Invalid theme format in {resolved_path}: root must be a mapping")
 
     return parse_theme_dict(data)
 
 
 def get_default_theme() -> Theme:
+    """Locate default theme checking local cwd first, then global config, then bundled dark.yaml."""
+    for candidate_name in ["theme", "dark"]:
+        resolved = find_theme_file(candidate_name)
+        if resolved:
+            try:
+                return load_theme(resolved)
+            except Exception:
+                pass
+
     pkg_dir = Path(__file__).resolve().parent
     default_yaml = pkg_dir / "themes" / "dark.yaml"
     if default_yaml.is_file():
@@ -215,6 +297,43 @@ def get_default_theme() -> Theme:
         except Exception:
             pass
     return Theme()
+
+
+def list_available_themes() -> list[str]:
+    """Scan and return a sorted list of unique theme names available in local cwd, global config, and bundled themes."""
+    found: set[str] = set()
+    exts = (".yaml", ".yml", ".json")
+
+    # 1. Bundled package themes
+    pkg_themes = Path(__file__).resolve().parent / "themes"
+    if pkg_themes.is_dir():
+        for p in pkg_themes.iterdir():
+            if p.suffix in exts:
+                found.add(p.stem)
+
+    # 2. User config directory (~/.config/rtop/ or %APPDATA%/rtop/)
+    cfg = get_config_dir()
+    if cfg.is_dir():
+        for p in cfg.iterdir():
+            if p.suffix in exts:
+                found.add(p.stem)
+        cfg_sub = cfg / "themes"
+        if cfg_sub.is_dir():
+            for p in cfg_sub.iterdir():
+                if p.suffix in exts:
+                    found.add(p.stem)
+
+    # 3. Local working directory (cwd)
+    cwd = Path.cwd()
+    if (cwd / "themes").is_dir():
+        for p in (cwd / "themes").iterdir():
+            if p.suffix in exts:
+                found.add(p.stem)
+    for p in cwd.iterdir():
+        if p.suffix in exts and (p.stem.startswith("theme") or p.stem in ("dark", "light", "template")):
+            found.add(p.stem)
+
+    return sorted(found)
 
 
 DARK = get_default_theme()

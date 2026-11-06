@@ -17,18 +17,26 @@ from error_win import ErrorWindow
 OPENAPI_VERSION = re.compile(r"3\.1\.[0-3]")
 
 
+import yaml
+
+
 def fetch_json(
     src: str,
 ) -> dict[str, Any]:
 
     url = file = False
 
-    if src.startswith((".", "./", "~/", "/", "../")):
+    path_obj = Path(src).expanduser()
+    if path_obj.exists() or src.startswith((".", "./", "~/", "/", "../")):
         file = True
-    elif src.startswith(("https", "http")):
+    elif src.startswith(("https://", "http://")):
         url = True
     else:
-        raise TypeError("Failed to extract resource")
+        # Check if it's a file path even without leading slash or dot (e.g. "openapi.json")
+        if path_obj.is_file():
+            file = True
+        else:
+            raise TypeError("Failed to extract resource: source must be a valid file path or HTTP(S) URL")
 
     # validate the source for the mentioned type
     # by default, the source is treated as a  network resource and will
@@ -39,18 +47,36 @@ def fetch_json(
             src = urlunsplit(
                 _split._replace(path="/openapi.json", query="", fragment="")
             )
-            return loads(get(src).content)
+            raw_bytes = get(src).content
+            try:
+                return loads(raw_bytes)
+            except Exception:
+                return yaml.safe_load(raw_bytes)
         except ConnectionError as con_er:
             raise ValueError("Connection failed")
         except Exception as e:
-            raise ValueError("Some error occured")
+            raise ValueError(f"Failed to fetch resource from URL: {e}")
 
     elif file:
         try:
-            with open(src) as f:  # type: ignore
-                return loads(f.read())
+            expanded = Path(src).expanduser().resolve()
+            content_str = expanded.read_text(encoding="utf-8")
+            if expanded.suffix in [".yaml", ".yml"]:
+                parsed = yaml.safe_load(content_str)
+            elif expanded.suffix == ".json":
+                parsed = loads(content_str)
+            else:
+                try:
+                    parsed = loads(content_str)
+                except Exception:
+                    parsed = yaml.safe_load(content_str)
+            if not isinstance(parsed, dict):
+                raise ValueError("Parsed file content must be a JSON/YAML mapping")
+            return parsed
+        except FileNotFoundError:
+            raise ValueError(f"File not found: {src}")
         except Exception as e:
-            raise ValueError("Failed to read from disk")
+            raise ValueError(f"Failed to read from disk: {e}")
     else:
         raise ValueError("Failed to process source")
 

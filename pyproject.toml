@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "rtop"
+version = "1.0.0"
+description = "A terminal user interface tool to inspect, explore, and debug OpenAPI 3.1 endpoints"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "requests",
+    "openapi-pydantic>=0.5.0",
+    "pyyaml>=6.0",
+]
+
+[project.scripts]
+rtop = "rtop:entry_point"
+
+[tool.setuptools]
+packages = ["rtop"]
+package-dir = {"rtop" = "."}
+
+[tool.setuptools.package-data]
+rtop = ["themes/*.yaml", "themes/*.json"]
+

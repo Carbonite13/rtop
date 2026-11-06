@@ -157,13 +157,16 @@ class APIExplorer:
             curses.endwin()
 
 
-if __name__ == "__main__":
-    # save state
+def entry_point():
+    """CLI entry point for rtop executable."""
     fd = stdin.fileno()
     saved = termios.tcgetattr(fd)
-
     try:
         f = APIExplorer()
         f.main()
     finally:
         termios.tcsetattr(fd, termios.TCSADRAIN, saved)
+
+
+if __name__ == "__main__":
+    entry_point()
