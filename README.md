@@ -38,7 +38,7 @@ rtop --help
 ### Synopsis
 
 ```text
-rtop (-u URL | -f FILE) [-s {route,method}] [-i INTERVAL] [-t THEME] [--version] [-h]
+rtop (-u URL | -f FILE) [-s {route,method}] [-c COLUMNS ...] [-i INTERVAL] [-t THEME] [--version] [-h]
 ```
 
 ### Options
@@ -52,8 +52,11 @@ rtop (-u URL | -f FILE) [-s {route,method}] [-i INTERVAL] [-t THEME] [--version]
 - `-s {route,method}`, `--sort {route,method}`  
   Sort listed routes either by path (`route`, default) or HTTP verb (`method`).
 
+- `-c COLUMNS ...`, `--columns COLUMNS ...`  
+  Custom list of columns to display in the main route explorer table. `Route` is primary and cannot be exempted. Available columns/aliases: `route` (`path`), `method` (`verb`), `summary` (`desc`), `opid` (`operationid`), `tags` (`tag`), `deprecated`. Default: `Route Method Summary`.
+
 - `-i INTERVAL`, `--interval INTERVAL`  
-  Polling interval in seconds (default: `5.0`) to periodically re-fetch and live-update the OpenAPI documentation in the background when loading from a URL.
+  Polling interval in seconds (default: `60.0`) to periodically re-fetch and live-update the OpenAPI documentation in the background when loading from a URL.
 
 - `-t THEME`, `--theme THEME`  
   Path to a theme file (e.g. `theme.yaml`, `theme.json`) or a theme name.

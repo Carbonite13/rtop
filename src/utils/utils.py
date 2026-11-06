@@ -99,6 +99,45 @@ def parse_openapi(
     return (content, info, paths)
 
 
+def parse_columns_arg(val: list[str] | str | None) -> list[str]:
+    """Parse comma-separated or space-separated list of column headers.
+    Enforces 'Route' as the primary non-exempt column.
+    Supported columns: Route, Method, Summary, OperationId, Tags, Deprecated.
+    """
+    alias = {
+        "route": "Route",
+        "path": "Route",
+        "method": "Method",
+        "verb": "Method",
+        "summary": "Summary",
+        "desc": "Summary",
+        "description": "Summary",
+        "operationid": "OperationId",
+        "opid": "OperationId",
+        "id": "OperationId",
+        "tags": "Tags",
+        "tag": "Tags",
+        "deprecated": "Deprecated",
+    }
+    if not val:
+        return ["Route", "Method", "Summary"]
+
+    if isinstance(val, str):
+        items = [val]
+    else:
+        items = val
+
+    selected = ["Route"]  # Primary non-exempt column
+    for item in items:
+        for part in item.replace(",", " ").split():
+            clean = part.strip().lower()
+            canon = alias.get(clean)
+            if canon and canon != "Route" and canon not in selected:
+                selected.append(canon)
+
+    return selected
+
+
 def build_parser() -> argparse.ArgumentParser:
     """Parse command line arguments"""
     p = argparse.ArgumentParser(
@@ -121,6 +160,12 @@ def build_parser() -> argparse.ArgumentParser:
         choices=["route", "method"],
         default="route",
         help="sort routes by 'route' (path, default) or 'method' (HTTP verb)",
+    )
+    p.add_argument(
+        "-c",
+        "--columns",
+        nargs="+",
+        help="custom list of columns to display (Route is primary/required; choices: route, method, summary, opid, tags, deprecated)",
     )
     p.add_argument(
         "-i",

@@ -40,7 +40,8 @@ class ErrorWindow:
 
         curses.start_color()
         self.fg, self.bg = fg, bg
-        self._pair = min(pair_id, curses.COLOR_PAIRS - 1)
+        color_pairs_max = getattr(curses, "COLOR_PAIRS", 64) or 64
+        self._pair = max(1, min(pair_id, color_pairs_max - 1)) if color_pairs_max > 1 else 0
         self._timer: threading.Timer | None = None
         self._source = (
             source  # to identify the element from which the error is originating
@@ -68,9 +69,13 @@ class ErrorWindow:
         seconds = timeout.value if isinstance(timeout, Timeout) else float(timeout)
         with self._lock:
             self._cancel()  # pyright: ignore
-            curses.init_pair(
-                self._pair, self.fg if fg is None else fg, self.bg if bg is None else bg
-            )
+            if curses.has_colors() and self._pair > 0:
+                try:
+                    curses.init_pair(
+                        self._pair, self.fg if fg is None else fg, self.bg if bg is None else bg
+                    )
+                except Exception:
+                    pass
             self._paint(msg)  # pyright: ignore
             if seconds is not None:
                 self._timer = threading.Timer(seconds, self.hide)  # pyright: ignore
@@ -94,18 +99,24 @@ class ErrorWindow:
         h, w = self._win.getmaxyx()
         self._win.bkgd(" ", curses.color_pair(self._pair))
         self._win.erase()
-        # self._win.border(0, 0, " ", " ", 0, 0, 0, 0)
         self._win.border()
-        source_len = self._source.__len__()  # 1 + len + 1 + 1 padded
-        self._win.addstr(self.h // 2, 2, self._source)
-        self._win.vline(self.h // 2, source_len + 3, curses.ACS_VLINE, self.h // 2)
-        for i, line in enumerate(textwrap.wrap(msg, max(1, w - 4))[: h - 2]):
-            self._win.addstr(i + 1, source_len + 5, line)
+        source_len = len(self._source)
+        # Only render separator column if there is enough horizontal space
+        if w > source_len + 10:
+            self._win.addstr(self.h // 2, 2, self._source)
+            vline_pos = source_len + 3
+            self._win.vline(1, vline_pos, curses.ACS_VLINE, h - 2)
+            self._win.addch(0, vline_pos, curses.ACS_TTEE)
+            self._win.addch(self.h - 1, vline_pos, curses.ACS_BTEE)
+            start_x = source_len + 5
+            wrap_w = max(1, w - start_x - 2)
+        else:
+            start_x = 2
+            wrap_w = max(1, w - 4)
 
-        # insert joining characters on both ends of the vertical line
-        vline_pos = source_len + 3
-        self._win.addch(0, vline_pos, curses.ACS_TTEE)
-        self._win.addch(self.h - 1, vline_pos, curses.ACS_BTEE)
+        for i, line in enumerate(textwrap.wrap(msg, wrap_w)[: max(1, h - 2)]):
+            if i + 1 < h - 1:
+                self._win.addstr(i + 1, start_x, line[:wrap_w])
 
         self._panel.show()
         self._panel.top()

@@ -13,7 +13,7 @@ from typing import Callable
 from src.wins.error_win import ErrorWindow, Timeout
 from src.wins.head_win import HeaderWindow
 from src.wins.main_win import MainWindow
-from src.utils.utils import parse_openapi, fetch_json, build_parser
+from src.utils.utils import parse_openapi, fetch_json, build_parser, parse_columns_arg
 from src.utils.theme import load_theme, Theme
 
 parser = build_parser()
@@ -26,6 +26,10 @@ class SpecialChar:
     FULL_BLOCK_SOLID = chr(0x2588)
     FULL_BLOCK_SHADE = chr(0x2591)
     CENTRE_DOT = chr(0x25E6)
+
+
+MIN_LINES = 12
+MIN_COLS = 50
 
 
 class APIExplorer:
@@ -52,7 +56,7 @@ class APIExplorer:
         self.theme.init_curses_pairs()
 
         # initialise panels
-        self._err_h, self._err_w = 3, self.w
+        self._err_h, self._err_w = max(3, min(self.h, 4)), self.w
 
         def on_error_hide():
             # Repaint components underneath the error window to restore covered content
@@ -64,7 +68,7 @@ class APIExplorer:
         self._err = ErrorWindow(
             self._err_h,
             self._err_w,
-            self.h - self._err_h,
+            max(0, self.h - self._err_h),
             0,
             fg=self.theme.error.fg if self.theme.error.fg != -1 else curses.COLOR_RED,
             bg=self.theme.error.bg if self.theme.error.bg != -1 else curses.COLOR_BLACK,
@@ -128,6 +132,17 @@ class APIExplorer:
         try:
 
             self._except = 0
+
+            # Failsafe check for minimum terminal dimensions
+            if self.h < MIN_LINES or self.w < MIN_COLS:
+                msg = (
+                    f"Terminal dimensions too small ({self.w}x{self.h}). "
+                    f"Minimum required: {MIN_COLS}x{MIN_LINES}. Press any key to exit."
+                )
+                self._except = 1
+                self._err.write(msg, timeout=Timeout.PERSIST)
+                return
+
             # fetch initial data
             src = _args.url or _args.file
             content = fetch_json(src)
@@ -145,6 +160,8 @@ class APIExplorer:
                     self._err.fg = new_theme.error.fg if new_theme.error.fg != -1 else curses.COLOR_RED
                     self._err.bg = new_theme.error.bg if new_theme.error.bg != -1 else curses.COLOR_BLACK
 
+            cols = parse_columns_arg(_args.columns)
+
             self._main = MainWindow(
                 self.h - 3,  # total height - header height
                 self.w,  # parent width
@@ -153,6 +170,7 @@ class APIExplorer:
                 error_win=self._err,
                 theme=self.theme,
                 on_theme_change=on_theme_change,
+                columns=cols,
             )
 
             # Start background poller daemon if source is a URL

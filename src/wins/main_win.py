@@ -106,7 +106,7 @@ def _build_info_lines(
                 rows.append((f"  {scheme}", 0))
         rows.append(("", 0))
 
-    rows.append(("── end ──", DIM))
+    # rows.append(("~"*5, DIM))
     return rows
 
 
@@ -123,6 +123,7 @@ class MainWindow:
         error_win: ErrorWindow | None = None,
         theme: Theme | None = None,
         on_theme_change: Optional[Callable[[Theme], None]] = None,
+        columns: Optional[list[str]] = None,
     ):
         self.h, self.w, self.y, self.x = h, w, y, x
         self._border = border
@@ -137,6 +138,16 @@ class MainWindow:
         self.selection = 0
         self._sort = "route"
         self._is_modal_active = False
+
+        # Configure columns: Route is always primary and cannot be exempted
+        req_cols = ["Route"]
+        if columns:
+            for c in columns:
+                if c not in req_cols:
+                    req_cols.append(c)
+        else:
+            req_cols = ["Route", "Method", "Summary"]
+        self.active_columns = req_cols
 
         if self._border:
             self._win.border()
@@ -169,10 +180,31 @@ class MainWindow:
                 if op_obj is not None:
                     raw.append((method, route, op_obj))
 
-        if self._sort == "method":
-            raw.sort(key=lambda t: (t[0], t[1]))
-        else:
-            raw.sort(key=lambda t: (t[1], t[0]))
+        sort_col = self._sort.capitalize() if isinstance(self._sort, str) else "Route"
+        if sort_col == "Opid":
+            sort_col = "OperationId"
+
+        def _get_sort_val(item: tuple[str, str, Any]):
+            m, r, obj = item
+            if sort_col == "Route":
+                return (r.lower(), m.lower())
+            elif sort_col == "Method":
+                return (m.lower(), r.lower())
+            elif sort_col == "Summary":
+                s = getattr(obj, "summary", "") or getattr(obj, "description", "") or ""
+                return (s.lower(), r.lower(), m.lower())
+            elif sort_col == "OperationId":
+                opid = getattr(obj, "operationId", "") or ""
+                return (opid.lower(), r.lower(), m.lower())
+            elif sort_col == "Tags":
+                tags = getattr(obj, "tags", []) or []
+                return (",".join(tags).lower(), r.lower(), m.lower())
+            elif sort_col == "Deprecated":
+                dep = getattr(obj, "deprecated", False) or False
+                return (0 if dep else 1, r.lower(), m.lower())
+            return (r.lower(), m.lower())
+
+        raw.sort(key=_get_sort_val)
 
         self.listed_routes = {i: (method, route, op_obj) for i, (method, route, op_obj) in enumerate(raw)}
         self.window_size = len(self.listed_routes)
@@ -181,9 +213,34 @@ class MainWindow:
 
         all_routes = list(paths.keys())
         route_w = max((max(len(r) for r in all_routes) + 2) if all_routes else 10, len("Route") + 1)
-        method_w = max(len("DELETE") + 2, len("Method") + 1)
-        summary_w = max(self.w - route_w - method_w, len("Summary"))
-        self.cols = {"Route": route_w, "Method": method_w, "Summary": summary_w}
+
+        # Dynamic layout for active columns
+        cols = {"Route": route_w}
+        fixed_widths: dict[str, int] = {}
+        if "Method" in self.active_columns:
+            fixed_widths["Method"] = max(len("DELETE") + 2, len("Method") + 1)
+        if "Deprecated" in self.active_columns:
+            fixed_widths["Deprecated"] = max(len("DEPRECATED") + 2, len("Deprecated") + 1)
+
+        for col, w in fixed_widths.items():
+            cols[col] = w
+
+        flex_cols = [c for c in self.active_columns if c not in fixed_widths and c != "Route"]
+        used_w = sum(cols.values())
+        rem_w = max(0, self.w - used_w)
+
+        if len(flex_cols) == 1:
+            cols[flex_cols[0]] = max(rem_w, len(flex_cols[0]) + 1)
+        elif len(flex_cols) > 1:
+            part = max(rem_w // len(flex_cols), 10)
+            for idx, fc in enumerate(flex_cols):
+                if idx == len(flex_cols) - 1:
+                    cols[fc] = max(self.w - sum(cols.values()), len(fc) + 1)
+                else:
+                    cols[fc] = part
+
+        # Reorder dict according to self.active_columns order
+        self.cols = {c: cols.get(c, 10) for c in self.active_columns}
 
         self._draw_header()
         self._refresh_list()
@@ -237,27 +294,39 @@ class MainWindow:
 
     def _refresh_list(self) -> None:
         """Rebuild the route list ScrollPanel contents and scroll to keep selection visible."""
-        cols = self.cols
-        route_w, method_w, summary_w = cols["Route"], cols["Method"], cols["Summary"]
-
         rows: list[tuple[str, int]] = []
         for i, (method, route, op_obj) in self.listed_routes.items():
-            raw_summary: str = (
-                getattr(op_obj, "summary", None)
-                or getattr(op_obj, "description", None)
-                or ""
-            )
-            trunc = (
-                raw_summary[: summary_w - 1] + "…"
-                if len(raw_summary) > summary_w - 1
-                else raw_summary
-            )
-            line = (
-                route.ljust(route_w)
-                + method.upper().ljust(method_w)
-                + trunc.ljust(summary_w)
-            )[: self.w]
+            cell_strs: list[str] = []
+            for col_name in self.active_columns:
+                col_w = self.cols.get(col_name, 10)
+                if col_name == "Route":
+                    val = route
+                elif col_name == "Method":
+                    val = method.upper()
+                elif col_name == "Summary":
+                    val = (
+                        getattr(op_obj, "summary", None)
+                        or getattr(op_obj, "description", None)
+                        or ""
+                    )
+                elif col_name == "OperationId":
+                    val = getattr(op_obj, "operationId", "") or ""
+                elif col_name == "Tags":
+                    tags = getattr(op_obj, "tags", None)
+                    val = ", ".join(tags) if tags else ""
+                elif col_name == "Deprecated":
+                    val = "YES" if getattr(op_obj, "deprecated", False) else ""
+                else:
+                    val = str(getattr(op_obj, col_name.lower(), ""))
 
+                trunc = (
+                    val[: col_w - 1] + "…"
+                    if len(val) > col_w - 1
+                    else val
+                )
+                cell_strs.append(trunc.ljust(col_w))
+
+            line = "".join(cell_strs)[: self.w]
             attr = self.theme.selection.attr if i == self.selection else self.theme.method_attr(method)
             rows.append((line, attr))
 
@@ -302,23 +371,35 @@ class MainWindow:
 
     def _do_command_menu(self) -> None:
         commands = [
+            ("sort",         "Sort endpoints by a selected column"),
             ("switch-theme", "Switch UI theme palette"),
-            ("sort-route",   "Sort endpoints alphabetically by route path"),
-            ("sort-method",  "Sort endpoints alphabetically by HTTP method"),
             ("cancel",       "Close menu"),
         ]
 
+        # Compute content width dynamically with padding
+        # Each item has format: "  {name}  :  {desc}  "
+        padding_inside = 2  # leading and trailing spaces per row
+        sep_gap = 4        # spacing around separator " : "
         max_name_w = max(len(name) for name, _ in commands)
-        raw_items = [f" {name.ljust(max_name_w)} : {desc} " for name, desc in commands]
+        max_desc_w = max(len(desc) for _, desc in commands)
         title = " Command Menu "
-        max_content_w = max(max(len(line) for line in raw_items), len(title) + 4)
-        # width = max content + border (2 cols)
-        menu_w = min(max_content_w + 2, self.w - 4)
+
+        raw_items = [
+            f"  {name.ljust(max_name_w)}  :  {desc}  "
+            for name, desc in commands
+        ]
+        content_w = max(len(line) for line in raw_items)
+        max_content_w = max(content_w, len(title) + 4)
+
+        # Modal window width: max content width + 2 columns for borders (left & right)
+        menu_w = max_content_w + 2
+        if self.w > 4:
+            menu_w = min(menu_w, self.w - 2)
 
         # Calculate menu dimensions centered on screen
         menu_h = len(commands) + 4
-        menu_y = max(1, (self.h - menu_h) // 2 + self.y)
-        menu_x = max(1, (self.w - menu_w) // 2 + self.x)
+        menu_y = max(0, (self.h - menu_h) // 2 + self.y)
+        menu_x = max(0, (self.w - menu_w) // 2 + self.x)
 
         win = curses.newwin(menu_h, menu_w, menu_y, menu_x)
         win.keypad(True)
@@ -362,16 +443,95 @@ class MainWindow:
         del win
 
         # Execute chosen command
-        if chosen_cmd == "switch-theme":
+        if chosen_cmd == "sort":
+            self._show_sort_selector()
+        elif chosen_cmd == "switch-theme":
             self._show_theme_switcher()
-        elif chosen_cmd == "sort-route":
-            self._sort = "route"
-            self.update_routes(getattr(self, "_raw_paths", {}))
-        elif chosen_cmd == "sort-method":
-            self._sort = "method"
-            self.update_routes(getattr(self, "_raw_paths", {}))
 
         # Repaint main window completely
+        self._win.touchwin()
+        self._draw_header()
+        self._refresh_list()
+
+    def _show_sort_selector(self) -> None:
+        """Spawn column selection dialog for sorting, marking currently displayed vs undisplayed columns."""
+        all_possible_columns = [
+            ("Route", "Endpoint URL path (primary)"),
+            ("Method", "HTTP verb (GET, POST, etc.)"),
+            ("Summary", "Operation summary or description"),
+            ("OperationId", "Unique OpenAPI operationId"),
+            ("Tags", "Categorized operation tags"),
+            ("Deprecated", "Deprecation flag"),
+        ]
+
+        # Markers:
+        # [ACTIVE] for columns currently displayed on the table
+        # [OFF] for columns currently not visible on the table
+        current_active = set(self.active_columns)
+        raw_rows = []
+        for col_name, desc in all_possible_columns:
+            status_tag = "[ACTIVE]" if col_name in current_active else "[OFF]   "
+            curr_tag = "*" if self._sort.lower() == col_name.lower() else " "
+            raw_rows.append((col_name, f" {curr_tag} {status_tag} {col_name.ljust(12)} - {desc} "))
+
+        title = " Sort By Column "
+        content_w = max(len(line) for _, line in raw_rows)
+        max_content_w = max(content_w, len(title) + 4)
+        dialog_w = max_content_w + 2
+        if self.w > 4:
+            dialog_w = min(dialog_w, self.w - 2)
+        dialog_h = len(all_possible_columns) + 4
+        dialog_y = max(0, (self.h - dialog_h) // 2 + self.y)
+        dialog_x = max(0, (self.w - dialog_w) // 2 + self.x)
+
+        win = curses.newwin(dialog_h, dialog_w, dialog_y, dialog_x)
+        win.keypad(True)
+        panel = cp.new_panel(win)
+        panel.top()
+        panel.show()
+
+        sel = 0
+        for idx, (col_name, _) in enumerate(all_possible_columns):
+            if self._sort.lower() == col_name.lower():
+                sel = idx
+                break
+
+        def render_sort_dialog():
+            win.erase()
+            win.box()
+            win.addstr(0, max(2, (dialog_w - len(title)) // 2), title, curses.A_BOLD)
+            for idx, (_, line_text) in enumerate(raw_rows):
+                attr = self.theme.selection.attr if idx == sel else curses.A_NORMAL
+                win.addstr(idx + 2, 1, line_text[: dialog_w - 2].ljust(dialog_w - 2), attr)
+            win.noutrefresh()
+            cp.update_panels()
+            curses.doupdate()
+
+        render_sort_dialog()
+
+        chosen_col = None
+        while True:
+            k = win.getch()
+            if k in (ord("q"), ord("Q"), 27):
+                break
+            elif k == curses.KEY_UP:
+                sel = (sel - 1) % len(all_possible_columns)
+                render_sort_dialog()
+            elif k == curses.KEY_DOWN:
+                sel = (sel + 1) % len(all_possible_columns)
+                render_sort_dialog()
+            elif k in (curses.KEY_ENTER, 10, 13):
+                chosen_col = all_possible_columns[sel][0]
+                break
+
+        panel.hide()
+        del panel
+        del win
+
+        if chosen_col:
+            self._sort = chosen_col
+            self.update_routes(getattr(self, "_raw_paths", {}))
+
         self._win.touchwin()
         self._draw_header()
         self._refresh_list()
@@ -384,10 +544,15 @@ class MainWindow:
                 self._err.write("No themes found in local directory, config, or package.")
             return
 
+        title = " Select Theme "
+        raw_items = [f"   {t_name}   " for t_name in available]
+        max_content_w = max(max(len(t) for t in raw_items), len(title) + 4)
         dialog_h = len(available) + 4
-        dialog_w = min(max(len(t) for t in available) + 12, self.w - 4)
-        dialog_y = max(1, (self.h - dialog_h) // 2 + self.y)
-        dialog_x = max(1, (self.w - dialog_w) // 2 + self.x)
+        dialog_w = max_content_w + 2
+        if self.w > 4:
+            dialog_w = min(dialog_w, self.w - 2)
+        dialog_y = max(0, (self.h - dialog_h) // 2 + self.y)
+        dialog_x = max(0, (self.w - dialog_w) // 2 + self.x)
 
         win = curses.newwin(dialog_h, dialog_w, dialog_y, dialog_x)
         win.keypad(True)
