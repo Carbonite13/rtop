@@ -5,8 +5,8 @@ from typing import Any, Callable, Optional
 
 import openapi_pydantic as op
 
-from error_win import ErrorWindow
-from scroll_win import ScrollPanel
+from src.wins.error_win import ErrorWindow
+from src.wins.scroll_win import ScrollPanel
 from src.utils.theme import Theme, get_default_theme, list_available_themes, load_theme
 
 __all__ = ["MainWindow"]
@@ -308,9 +308,15 @@ class MainWindow:
             ("cancel",       "Close menu"),
         ]
 
+        max_name_w = max(len(name) for name, _ in commands)
+        raw_items = [f" {name.ljust(max_name_w)} : {desc} " for name, desc in commands]
+        title = " Command Menu "
+        max_content_w = max(max(len(line) for line in raw_items), len(title) + 4)
+        # width = max content + border (2 cols)
+        menu_w = min(max_content_w + 2, self.w - 4)
+
         # Calculate menu dimensions centered on screen
         menu_h = len(commands) + 4
-        menu_w = min(max(len(desc) + len(name) + 8 for name, desc in commands), self.w - 4)
         menu_y = max(1, (self.h - menu_h) // 2 + self.y)
         menu_x = max(1, (self.w - menu_w) // 2 + self.x)
 
@@ -325,12 +331,10 @@ class MainWindow:
         def render_menu():
             win.erase()
             win.box()
-            title = " Command Menu "
             win.addstr(0, max(2, (menu_w - len(title)) // 2), title, curses.A_BOLD)
-            for idx, (cmd_name, cmd_desc) in enumerate(commands):
-                display = f" {cmd_name.ljust(15)} : {cmd_desc} "[: menu_w - 2]
+            for idx, display in enumerate(raw_items):
                 attr = self.theme.selection.attr if idx == sel else curses.A_NORMAL
-                win.addstr(idx + 2, 1, display.ljust(menu_w - 2), attr)
+                win.addstr(idx + 2, 1, display[: menu_w - 2].ljust(menu_w - 2), attr)
             win.noutrefresh()
             cp.update_panels()
             curses.doupdate()
