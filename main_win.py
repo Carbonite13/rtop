@@ -4,6 +4,7 @@ import curses.panel as cp
 from typing import Optional, Any
 import openapi_pydantic as op
 
+from scroll_win import ScrollPanel
 from theme import DARK as theme
 from error_win import ErrorWindow
 
@@ -41,6 +42,8 @@ class MainWindow:
         if self._border:
             self._win.border()
 
+        self._info = ScrollPanel(self.h - 8, self.w - 8, 4, 4, title="test")
+
         self._win.keypad(True)
 
     def show(self, paths: dict[str, op.PathItem]):
@@ -64,16 +67,12 @@ class MainWindow:
             self._win.addstr(
                 self.top,
                 self.left,
-                header,
-                curses.A_BOLD | theme.error.attr,
+                header + " " * (self.w - self.max_content - 1),
+                curses.A_REVERSE,
             )
             self.left += col_width
         self.top += 1
         self.left = 1
-
-        self._win.refresh()
-        cp.update_panels()
-        curses.doupdate()
 
         # size calculations
         i = 0
@@ -84,7 +83,7 @@ class MainWindow:
                 if hasattr(paths[route], method):
                     # if a method is found, enter it
                     _method = getattr(paths[route], method)
-                    self.listed_routes[(i, method, route)] = _method
+                    self.listed_routes[(method, route)] = _method
                     line = "".join(
                         [
                             route.ljust(cols["Route"]),
@@ -94,8 +93,15 @@ class MainWindow:
                     )
                     self._win.addstr(self.top, 1, line)
                     self.top += 1
-                    i += 1
         else:
+            # sort the routes based on condition
+            sort_key = lambda key: ["Method", "Route"].index(key)
+            for key in sorted(
+                self.listed_routes.keys(), key=lambda t: t[sort_key("Method")]
+            ):
+                self.listed_routes[(i, *key)] = self.listed_routes.pop(key)
+                i += 1
+
             _ = len(self.listed_routes.keys())
             self.window_size = min(_, self.h - 2)
             self.top = self.top_init + 1  # reset pointer
@@ -143,7 +149,7 @@ class MainWindow:
 
         cols = self.cols
         max_content = self.max_content
-        for (i, method, path), path_info in self.listed_routes.items():
+        for (i, method, path), path_info in sorted(self.listed_routes.items()):
             line = "".join(
                 [
                     path.ljust(cols["Route"]),
@@ -163,7 +169,8 @@ class MainWindow:
         self.redraw()
 
     def info_panel(self, index):
-        raise ValueError("Feature yet to be developed")
+        self._info.write("\n".join([f"info {x}" for x in range(100)]))
+        self._info.run()
 
     def redraw(self):
         self._win.refresh()
