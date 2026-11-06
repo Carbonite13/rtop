@@ -91,5 +91,12 @@ def build_parser() -> argparse.ArgumentParser:
     src_grp.add_argument("-u", "--url", help="base url for fetching the routes info")
     src_grp.add_argument("-f", "--file", help="OpenAPI compatible JSON file")
     p.add_argument("-t", "--theme", help="theme file to use")
+    p.add_argument(
+        "-s",
+        "--sort",
+        choices=["route", "method"],
+        default="route",
+        help="sort routes by 'route' (path, default) or 'method' (HTTP verb)",
+    )
     p.add_argument("--version", action="version", version="1.0.0")
     return p

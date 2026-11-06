@@ -14,3 +14,4 @@ poetry.lock
 # editor configuration files
 languages.toml
 
+server.py

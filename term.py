@@ -82,7 +82,7 @@ class APIExplorer:
                 0,  # start at 0
                 error_win=self._err,
             )
-            self._main.show(paths)
+            self._main.show(paths, sort=_args.sort)
 
         except Exception as e:
             self._except = 1
