@@ -1,13 +1,15 @@
-import curses
 from _curses import error as CursesError
+import curses
 import curses.panel as cp
 import textwrap
-from typing import Optional, Any
+from typing import Any, Optional
+
 import openapi_pydantic as op
 
-from error_win import ErrorWindow
-from theme import Theme, get_default_theme
+from src.utils.theme import Theme, get_default_theme
+from src.wins.error_win import ErrorWindow
 
+__all__ = ["HeaderWindow"]
 
 class HeaderWindow:
     def __init__(

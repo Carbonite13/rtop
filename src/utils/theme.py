@@ -1,8 +1,11 @@
 import curses
 from dataclasses import dataclass, field
 import json
+import os
+from pathlib import Path
 from pathlib import Path
 from typing import Any, Mapping
+
 import yaml
 
 __all__ = ["Style", "Theme", "load_theme", "get_default_theme"]
@@ -170,8 +173,7 @@ def parse_theme_dict(data: dict[str, Any]) -> Theme:
     return theme
 
 
-import os
-from pathlib import Path
+
 
 
 def get_config_dir() -> Path:

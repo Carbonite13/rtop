@@ -2,6 +2,7 @@ import curses
 import curses.panel as cp
 from typing import Iterable
 
+__all__ = ["ScrollPanel"]
 
 class ScrollPanel:
     """Bordered, scrollable panel: content lives in a pad, the framed panel window is the viewport."""

@@ -1,15 +1,15 @@
 import curses
 import curses.panel as cp
-from typing import Any, Optional, Callable
 import textwrap
+from typing import Any, Callable, Optional
+
 import openapi_pydantic as op
 
-from scroll_win import ScrollPanel
-from theme import Theme, get_default_theme, list_available_themes, load_theme
 from error_win import ErrorWindow
+from scroll_win import ScrollPanel
+from src.utils.theme import Theme, get_default_theme, list_available_themes, load_theme
 
 __all__ = ["MainWindow"]
-
 
 def _fmt_responses(responses: dict | None) -> list[tuple[str, int]]:
     """Render an Operation's responses dict into styled (text, attr) pairs."""
@@ -447,8 +447,6 @@ class MainWindow:
         self._win.touchwin()
         self._draw_header()
         self._refresh_list()
-
-    # ── misc ─────────────────────────────────────────────────────────────────
 
     def redraw(self) -> None:
         self._win.refresh()

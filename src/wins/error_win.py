@@ -1,11 +1,11 @@
 import curses
 import curses.panel as cp
-
 from enum import Enum
-import threading
-from typing import overload, Callable, Optional
 import textwrap
+import threading
+from typing import Callable, Optional, overload
 
+__all__ = ["Timeout", "ErrorWindow"]
 
 class Timeout(Enum):
     PERSIST = None

@@ -10,14 +10,11 @@ import curses
 import curses.panel as cp
 from typing import Callable
 
-from pydantic_core.core_schema import ErrorType
-
-from error_win import ErrorWindow, Timeout
-from head_win import HeaderWindow
-from main_win import MainWindow
-from utils import parse_openapi, fetch_json
-from utils import build_parser
-from theme import load_theme, Theme
+from src.wins.error_win import ErrorWindow, Timeout
+from src.wins.head_win import HeaderWindow
+from src.wins.main_win import MainWindow
+from src.utils.utils import parse_openapi, fetch_json, build_parser
+from src.utils.theme import load_theme, Theme
 
 parser = build_parser()
 _args = parser.parse_args(argv[1:])

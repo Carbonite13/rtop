@@ -1,24 +1,18 @@
-from typing import Any
 import argparse
-
-from urllib.parse import urlsplit, urlunsplit
-from requests import get
-from requests.exceptions import ConnectionError
+from json import loads
 from pathlib import Path
+import re
+from typing import Any
+from urllib.parse import urlsplit, urlunsplit
 
 import openapi_pydantic as op
-from json import loads
-import re
-
-import logging
-
-from error_win import ErrorWindow
-
-OPENAPI_VERSION = re.compile(r"3\.1\.[0-3]")
-
-
+from requests import get
+from requests.exceptions import ConnectionError
 import yaml
 
+__all__ = ["fetch_json", "parse_openapi", "build_parser"]
+
+OPENAPI_VERSION = re.compile(r"3\.1\.[0-3]")
 
 def fetch_json(
     src: str,
