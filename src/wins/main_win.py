@@ -64,7 +64,7 @@ def _build_info_lines(
         rows.append(("", 0))
 
     if operation.deprecated:
-        rows.append(("  ⚠  DEPRECATED", B | curses.A_BLINK))
+        rows.append((f"  {chr(0x26a0)} DEPRECATED", B | curses.A_BLINK))
         rows.append(("", 0))
 
     if operation.summary:
@@ -358,8 +358,6 @@ class MainWindow:
         # after the overlay closes, repaint everything underneath
         self._draw_header()
         self._refresh_list()
-
-    # ── Command Menu & Theme Picker ──────────────────────────────────────────
 
     def _show_command_menu(self) -> None:
         """Spawn centered modal command menu when '/' is pressed."""
