@@ -11,7 +11,7 @@ The purpose of this tool is to provide an interactive, terminal-based viewer for
 ### Synopsis
 
 ```text
-python term.py (-u URL | -f FILE) [-s {route,method}] [-t THEME] [--version] [-h]
+rtop (-u URL | -f FILE) [-s {route,method}] [-t THEME] [--version] [-h]
 ```
 
 ### Options
@@ -25,8 +25,11 @@ python term.py (-u URL | -f FILE) [-s {route,method}] [-t THEME] [--version] [-h
 - `-s {route,method}`, `--sort {route,method}`  
   Sort listed routes either by path (`route`, default) or HTTP verb (`method`).
 
+- `-i INTERVAL`, `--interval INTERVAL`  
+  Polling interval in seconds (default: `5.0`) to periodically re-fetch the OpenAPI documentation in the background when loading from a URL.
+
 - `-t THEME`, `--theme THEME`  
-  Specify a custom theme definition file.
+  Path to a theme configuration file (e.g. `theme.yaml`, `theme.json`) or a built-in theme name (`dark`, `light`).
 
 - `--version`  
   Display the application version.
@@ -36,21 +39,27 @@ python term.py (-u URL | -f FILE) [-s {route,method}] [-t THEME] [--version] [-h
 
 ### Examples
 
-Load a specification from a remote server:
+Load a specification from a remote server with a 10-second refresh interval:
 
 ```bash
-python term.py -u http://localhost:8000
+./rtop -u http://localhost:8000 -i 10.0
 ```
 
 Load a specification from a local file:
 
 ```bash
-python term.py -f ./openapi.json
+./rtop -f ./openapi.json
+```
+
+Load a specification with a custom theme file:
+
+```bash
+./rtop -f ./openapi.json -t ./theme.yaml
 ```
 
 Load a specification and sort endpoints by HTTP method:
 
 ```bash
-python term.py -f ./openapi.json -s method
+./rtop -f ./openapi.json -s method
 ```
 

@@ -1,0 +1,50 @@
+# Default Dark Theme for rtop (API Explorer)
+name: "dark"
+
+styles:
+  base:
+    fg: "white"
+    bg: "default"
+  muted:
+    fg: "white"
+    attrs: ["dim"]
+  main_header:
+    fg: "black"
+    bg: "white"
+    attrs: ["bold"]
+  header_base:
+    fg: "white"
+    attrs: ["bold"]
+  header_key:
+    fg: "white"
+    attrs: ["bold"]
+  header_value:
+    fg: "green"
+  border:
+    fg: "white"
+  error:
+    fg: "red"
+  selection:
+    fg: "black"
+    bg: "white"
+
+methods:
+  get:
+    fg: "green"
+    attrs: ["bold"]
+  post:
+    fg: "yellow"
+    attrs: ["bold"]
+  put:
+    fg: "blue"
+    attrs: ["bold"]
+  patch:
+    fg: "cyan"
+    attrs: ["bold"]
+  delete:
+    fg: "red"
+    attrs: ["bold"]
+  head:
+    fg: "white"
+    attrs: ["bold"]
+

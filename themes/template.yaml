@@ -1,0 +1,78 @@
+name: "template"
+
+styles:
+  # General default fallback text style
+  base:
+    fg: "white"
+    bg: "default"
+    attrs: []
+
+  # Secondary or dimmed labels and indicators
+  muted:
+    fg: "white"
+    bg: "default"
+    attrs: ["dim"]
+
+  # Table column header row in the main window
+  main_header:
+    fg: "black"
+    bg: "white"
+    attrs: ["bold"]
+
+  # Top banner header window general text
+  header_base:
+    fg: "white"
+    bg: "default"
+    attrs: ["bold"]
+
+  # Top banner metadata keys (e.g., "OpenAPI:", "Server:", "Title:")
+  header_key:
+    fg: "white"
+    bg: "default"
+    attrs: ["bold"]
+
+  # Top banner metadata values (e.g., version number, server URL)
+  header_value:
+    fg: "green"
+    bg: "default"
+    attrs: []
+
+  # Window frame borders
+  border:
+    fg: "white"
+    bg: "default"
+    attrs: []
+
+  # Transient popup error message notifications
+  error:
+    fg: "red"
+    bg: "black"
+    attrs: ["bold"]
+
+  # Currently focused/selected row in lists
+  selection:
+    fg: "black"
+    bg: "white"
+    attrs: ["bold"]
+
+# Styling for individual HTTP methods in route listings and info panels
+methods:
+  get:
+    fg: "green"
+    attrs: ["bold"]
+  post:
+    fg: "yellow"
+    attrs: ["bold"]
+  put:
+    fg: "blue"
+    attrs: ["bold"]
+  patch:
+    fg: "cyan"
+    attrs: ["bold"]
+  delete:
+    fg: "red"
+    attrs: ["bold"]
+  head:
+    fg: "white"
+    attrs: ["bold"]
+

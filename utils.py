@@ -73,10 +73,10 @@ def parse_openapi(
     if not _version_check(content):
         raise Exception("Unsupported openapi version")
 
-    paths: dict[str, op.PathItem] = content.paths  # pyright: ignore
+    paths: dict[str, op.PathItem] = content.paths or {}  # pyright: ignore
     info: op.Info = content.info
 
-    return (info, paths)
+    return (content, info, paths)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -90,13 +90,24 @@ def build_parser() -> argparse.ArgumentParser:
     src_grp = p.add_mutually_exclusive_group(required=True)
     src_grp.add_argument("-u", "--url", help="base url for fetching the routes info")
     src_grp.add_argument("-f", "--file", help="OpenAPI compatible JSON file")
-    p.add_argument("-t", "--theme", help="theme file to use")
+    p.add_argument(
+        "-t",
+        "--theme",
+        help="path to a theme configuration file (e.g. theme.yaml, theme.json) or built-in theme name",
+    )
     p.add_argument(
         "-s",
         "--sort",
         choices=["route", "method"],
         default="route",
         help="sort routes by 'route' (path, default) or 'method' (HTTP verb)",
+    )
+    p.add_argument(
+        "-i",
+        "--interval",
+        type=float,
+        default=5.0,
+        help="poll interval in seconds to refresh OpenAPI doc when fetching from URL (default: 5.0)",
     )
     p.add_argument("--version", action="version", version="1.0.0")
     return p

@@ -1,24 +1,14 @@
 import curses
 import curses.panel as cp
-from typing import Any
-import json
+from typing import Any, Optional
 import textwrap
 import openapi_pydantic as op
 
 from scroll_win import ScrollPanel
-from theme import DARK as theme
+from theme import Theme, get_default_theme
 from error_win import ErrorWindow
 
 __all__ = ["MainWindow"]
-
-# HTTP method -> colour pair index (initialised once in show())
-_METHOD_COLORS: dict[str, int] = {}
-_COLOR_BASE = 20  # start registering pairs from slot 20 to avoid conflicts
-
-
-def _method_attr(method: str) -> int:
-    """Return a curses colour attribute for an HTTP verb."""
-    return curses.color_pair(_METHOD_COLORS.get(method.lower(), 0))
 
 
 def _fmt_responses(responses: dict | None) -> list[tuple[str, int]]:
@@ -51,7 +41,7 @@ def _fmt_parameters(params: list | None) -> list[tuple[str, int]]:
 
 
 def _build_info_lines(
-    method: str, route: str, operation: op.v3.v3_1.Operation
+    method: str, route: str, operation: op.v3.v3_1.Operation, theme: Theme
 ) -> list[tuple[str, int]]:
     """Format all Operation fields into a list of styled (text, attr) pairs."""
     B = curses.A_BOLD
@@ -59,7 +49,8 @@ def _build_info_lines(
     REV = curses.A_REVERSE
     rows: list[tuple[str, int]] = []
 
-    rows.append((f" {method.upper()}  {route} ", REV | _method_attr(method)))
+    method_style = theme.method_attr(method)
+    rows.append((f" {method.upper()}  {route} ", REV | method_style))
     rows.append(("", 0))
 
     if operation.operationId:
@@ -130,6 +121,7 @@ class MainWindow:
         *,
         border: bool = False,
         error_win: ErrorWindow | None = None,
+        theme: Theme | None = None,
     ):
         self.h, self.w, self.y, self.x = h, w, y, x
         self._border = border
@@ -137,6 +129,7 @@ class MainWindow:
         self._win = curses.newwin(h, w, y, x)
         self._panel = cp.new_panel(self._win)
         self._err = error_win
+        self.theme = theme or get_default_theme()
 
         self.listed_routes: dict = {}
         self.selection = 0
@@ -151,55 +144,47 @@ class MainWindow:
         # Detail panel: floated overlay, slightly inset
         self._info = ScrollPanel(h - 6, w - 6, y + 3, x + 3, title="Route Info", border=True)
 
-        # register method colour pairs
-        self._init_method_colors()
-
-    def _init_method_colors(self) -> None:
-        curses.start_color()
-        curses.use_default_colors()
-        palette = {
-            "get":    (curses.COLOR_GREEN,  -1),
-            "post":   (curses.COLOR_YELLOW, -1),
-            "put":    (curses.COLOR_BLUE,   -1),
-            "patch":  (curses.COLOR_CYAN,   -1),
-            "delete": (curses.COLOR_RED,    -1),
-            "head":   (curses.COLOR_WHITE,  -1),
-        }
-        for slot, (verb, (fg, bg)) in enumerate(palette.items(), start=_COLOR_BASE):
-            curses.init_pair(slot, fg, bg)
-            _METHOD_COLORS[verb] = slot
-
-    def show(self, paths: dict[str, op.PathItem], sort: str = "route") -> None:
-        METHODS = ["get", "post", "put", "delete", "patch", "head"]
+    def update_routes(self, paths: dict[str, op.PathItem]) -> None:
+        """Update the routes dataset (e.g. from background daemon) and re-render."""
         raw: list[tuple[str, str, Any]] = []
+        METHODS = ["get", "post", "put", "delete", "patch", "head"]
         for route, path_item in paths.items():
             for method in METHODS:
                 op_obj = getattr(path_item, method, None)
                 if op_obj is not None:
                     raw.append((method, route, op_obj))
 
-        if sort == "method":
+        if self._sort == "method":
             raw.sort(key=lambda t: (t[0], t[1]))
         else:
             raw.sort(key=lambda t: (t[1], t[0]))
 
         self.listed_routes = {i: (method, route, op_obj) for i, (method, route, op_obj) in enumerate(raw)}
+        self.window_size = len(self.listed_routes)
+        if self.selection >= self.window_size:
+            self.selection = max(0, self.window_size - 1)
 
         all_routes = list(paths.keys())
-        route_w = max(max(len(r) for r in all_routes) + 2, len("Route") + 1)
+        route_w = max((max(len(r) for r in all_routes) + 2) if all_routes else 10, len("Route") + 1)
         method_w = max(len("DELETE") + 2, len("Method") + 1)
         summary_w = max(self.w - route_w - method_w, len("Summary"))
         self.cols = {"Route": route_w, "Method": method_w, "Summary": summary_w}
 
-        self.window_size = len(self.listed_routes)
         self._draw_header()
         self._refresh_list()
+
+    def show(self, paths: dict[str, op.PathItem], sort: str = "route") -> None:
+        self._sort = sort
+        self.update_routes(paths)
 
         while True:
             try:
                 key = self._win.getch()
                 if key in (ord("q"), ord("Q")):
                     break
+                elif key == -1:
+                    # Timeout on non-blocking getch
+                    continue
                 elif key == curses.KEY_UP:
                     if self.selection > 0:
                         self.selection -= 1
@@ -223,11 +208,12 @@ class MainWindow:
         """Draw the sticky column-header row on the backing window (row 0)."""
         self._win.erase()
         x = 0
+        header_attr = self.theme.main_header.attr
         for col_name, col_width in self.cols.items():
-            self._win.addstr(0, x, col_name.ljust(col_width)[: self.w - x], curses.A_REVERSE)
+            self._win.addstr(0, x, col_name.ljust(col_width)[: self.w - x], header_attr)
             x += col_width
         if x < self.w:
-            self._win.addstr(0, x, " " * (self.w - x), curses.A_REVERSE)
+            self._win.addstr(0, x, " " * (self.w - x), header_attr)
         self._win.noutrefresh()
         cp.update_panels()
         curses.doupdate()
@@ -255,7 +241,7 @@ class MainWindow:
                 + trunc.ljust(summary_w)
             )[: self.w]
 
-            attr = curses.A_REVERSE if i == self.selection else _method_attr(method)
+            attr = self.theme.selection.attr if i == self.selection else self.theme.method_attr(method)
             rows.append((line, attr))
 
         self._list.write_styled(rows, clear=True)
@@ -273,10 +259,9 @@ class MainWindow:
         if index not in self.listed_routes:
             return
         method, route, operation = self.listed_routes[index]
-        title = f"{method.upper()}  {route}"
-        self._info.title=None
+        self._info.title = ""
 
-        styled_rows = _build_info_lines(method, route, operation)
+        styled_rows = _build_info_lines(method, route, operation, self.theme)
         self._info.write_styled(styled_rows, clear=True)
         self._info.run()
 

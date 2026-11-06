@@ -3,6 +3,8 @@ import logging
 import argparse as args
 from sys import argv, stdout, stdin
 import termios
+import threading
+import time
 
 import curses
 import curses.panel as cp
@@ -15,6 +17,7 @@ from head_win import HeaderWindow
 from main_win import MainWindow
 from utils import parse_openapi, fetch_json
 from utils import build_parser
+from theme import load_theme, Theme
 
 parser = build_parser()
 _args = parser.parse_args(argv[1:])
@@ -47,9 +50,24 @@ class APIExplorer:
         # initializers
         self.__init_curses()
 
+        # initialise theme
+        self.theme: Theme = load_theme(_args.theme)
+        self.theme.init_curses_pairs()
+
         # initialise panels
         self._err_h, self._err_w = 3, self.w
-        self._err = ErrorWindow(self._err_h, self._err_w, self.h - self._err_h, 0)
+        self._err = ErrorWindow(
+            self._err_h,
+            self._err_w,
+            self.h - self._err_h,
+            0,
+            fg=self.theme.error.fg if self.theme.error.fg != -1 else curses.COLOR_RED,
+            bg=self.theme.error.bg if self.theme.error.bg != -1 else curses.COLOR_BLACK,
+        )
+
+        # daemon poller controls
+        self._stop_poller = threading.Event()
+        self._poll_thread: threading.Thread | None = None
 
     """Internal functions and methods"""
 
@@ -57,6 +75,26 @@ class APIExplorer:
         curses.noecho()
         curses.curs_set(False)
         curses.cbreak()
+
+    def _start_poller(self, url: str, interval: float):
+        """Background daemon thread to poll documentation updates from remote URL."""
+        def poll_loop():
+            while not self._stop_poller.wait(timeout=interval):
+                try:
+                    raw_data = fetch_json(url)
+                    parsed_doc, parsed_info, parsed_paths = parse_openapi(raw_data)
+                    # Safely push updates to UI components
+                    if hasattr(self, "_head"):
+                        self._head.update_metadata(parsed_doc, source=url)
+                    if hasattr(self, "_main"):
+                        self._main.update_routes(parsed_paths)
+                except Exception as e:
+                    # Non-fatal during background poll: notify via error window
+                    if hasattr(self, "_err"):
+                        self._err.write(f"Background poll failed: {e}")
+
+        self._poll_thread = threading.Thread(target=poll_loop, daemon=True)
+        self._poll_thread.start()
 
     """Core functions"""
 
@@ -66,13 +104,13 @@ class APIExplorer:
         try:
 
             self._except = 0
-            # fetch the data
-            content = fetch_json(
-                _args.url or _args.file,
-            )
-            info, paths = parse_openapi(content)
+            # fetch initial data
+            src = _args.url or _args.file
+            content = fetch_json(src)
+            doc, info, paths = parse_openapi(content)
+
             self._head = HeaderWindow(
-                3, self.w, 0, 0, heading=f"OpenAPI: {content['openapi']}"
+                3, self.w, 0, 0, content=doc, source=src, theme=self.theme
             )
 
             self._main = MainWindow(
@@ -81,7 +119,14 @@ class APIExplorer:
                 3,  # start at ending position of header
                 0,  # start at 0
                 error_win=self._err,
+                theme=self.theme,
             )
+
+            # Start background poller daemon if source is a URL
+            if _args.url:
+                interval = max(0.5, float(_args.interval))
+                self._start_poller(_args.url, interval)
+
             self._main.show(paths, sort=_args.sort)
 
         except Exception as e:
@@ -89,6 +134,9 @@ class APIExplorer:
             self._err.write(str(e))
 
         finally:
+            # stop daemon poller
+            self._stop_poller.set()
+
             # provide a user friendly error so as what happened/
             # describe the error
             if self._except:

@@ -1,0 +1,23 @@
+{
+  "name": "light",
+  "styles": {
+    "base": { "fg": "black", "bg": "white" },
+    "muted": { "fg": "black", "attrs": ["dim"] },
+    "main_header": { "fg": "white", "bg": "black", "attrs": ["bold"] },
+    "header_base": { "fg": "black", "attrs": ["bold"] },
+    "header_key": { "fg": "black", "attrs": ["bold"] },
+    "header_value": { "fg": "blue" },
+    "border": { "fg": "black" },
+    "error": { "fg": "red", "attrs": ["bold"] },
+    "selection": { "fg": "white", "bg": "black" }
+  },
+  "methods": {
+    "get": { "fg": "green", "attrs": ["bold"] },
+    "post": { "fg": "magenta", "attrs": ["bold"] },
+    "put": { "fg": "blue", "attrs": ["bold"] },
+    "patch": { "fg": "cyan", "attrs": ["bold"] },
+    "delete": { "fg": "red", "attrs": ["bold"] },
+    "head": { "fg": "black", "attrs": ["bold"] }
+  }
+}
+
