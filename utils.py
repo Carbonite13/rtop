@@ -108,9 +108,9 @@ def parse_openapi(
 def build_parser() -> argparse.ArgumentParser:
     """Parse command line arguments"""
     p = argparse.ArgumentParser(
-        prog="API Explorer",
+        prog="rtop",
         description="test and debug api paths from the terminal interface",
-        epilog="explore -u http://localhost:80",
+        epilog="rtop -u http://localhost:80",
     )
 
     src_grp = p.add_mutually_exclusive_group(required=True)
@@ -132,8 +132,8 @@ def build_parser() -> argparse.ArgumentParser:
         "-i",
         "--interval",
         type=float,
-        default=5.0,
-        help="poll interval in seconds to refresh OpenAPI doc when fetching from URL (default: 5.0)",
+        default=60.0,
+        help="poll interval in seconds to refresh OpenAPI doc when fetching from URL (default: 60.0)",
     )
     p.add_argument("--version", action="version", version="1.0.0")
     return p

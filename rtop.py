@@ -78,11 +78,29 @@ class APIExplorer:
 
     def _start_poller(self, url: str, interval: float):
         """Background daemon thread to poll documentation updates from remote URL."""
+        last_hash: int | None = None
+
         def poll_loop():
+            nonlocal last_hash
             while not self._stop_poller.wait(timeout=interval):
                 try:
+                    # Do not interrupt user if any modal window/action is active
+                    if hasattr(self, "_main") and self._main.is_busy():
+                        continue
+
                     raw_data = fetch_json(url)
+                    # Check if data actually changed before updating UI
+                    current_hash = hash(str(sorted(raw_data.items())))
+                    if last_hash is not None and current_hash == last_hash:
+                        continue
+
+                    # Double check busy state after network fetch completes
+                    if hasattr(self, "_main") and self._main.is_busy():
+                        continue
+
                     parsed_doc, parsed_info, parsed_paths = parse_openapi(raw_data)
+                    last_hash = current_hash
+
                     # Safely push updates to UI components
                     if hasattr(self, "_head"):
                         self._head.update_metadata(parsed_doc, source=url)
@@ -113,6 +131,14 @@ class APIExplorer:
                 3, self.w, 0, 0, content=doc, source=src, theme=self.theme
             )
 
+            def on_theme_change(new_theme: Theme):
+                self.theme = new_theme
+                if hasattr(self, "_head"):
+                    self._head.set_theme(new_theme)
+                if hasattr(self, "_err"):
+                    self._err.fg = new_theme.error.fg if new_theme.error.fg != -1 else curses.COLOR_RED
+                    self._err.bg = new_theme.error.bg if new_theme.error.bg != -1 else curses.COLOR_BLACK
+
             self._main = MainWindow(
                 self.h - 3,  # total height - header height
                 self.w,  # parent width
@@ -120,6 +146,7 @@ class APIExplorer:
                 0,  # start at 0
                 error_win=self._err,
                 theme=self.theme,
+                on_theme_change=on_theme_change,
             )
 
             # Start background poller daemon if source is a URL

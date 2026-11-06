@@ -1,6 +1,6 @@
-# API Explorer (rtop)
+# RTOP
 
-A terminal user interface (TUI) tool to inspect, explore, and debug OpenAPI 3.1 endpoints and schemas directly from the command line.
+A command-line tool to inspect, explore, and debug OpenAPI 3.1 endpoints and schemas directly from the command line.
 
 ## Purpose
 
@@ -8,9 +8,12 @@ The purpose of this tool is to provide an interactive, terminal-based viewer for
 
 ## Installation
 
-An automated compilation and installation script is provided in [`install.sh`](file:///home/datura/Desktop/.tmp/rtop/install.sh):
+An automated compilation and installation script is provided in [`install.sh`](./install.sh):
 
 ```bash
+# Enable execution bit for the installation script
+chmod +x install.sh
+
 # Standard installation (compiles byte-code and links rtop to ~/.local/bin/rtop)
 ./install.sh
 
@@ -27,7 +30,7 @@ export PATH="$HOME/.local/bin:$PATH"
 You can also run directly from source:
 
 ```bash
-python3 rtop.py --help
+rtop --help
 ```
 
 ## Command Line Usage
@@ -60,6 +63,13 @@ rtop (-u URL | -f FILE) [-s {route,method}] [-i INTERVAL] [-t THEME] [--version]
 
 - `-h`, `--help`  
   Show the help message and exit.
+
+### Keybindings & Controls
+
+- `Up` / `Down`: Navigate through routes list or menu items.
+- `Enter`: View detailed information for the highlighted route.
+- `/`: Open the Command Menu in the middle of the screen (switch theme, change sorting).
+- `q` / `Q`: Close active panel or quit application.
 
 ## Themes Configuration
 
@@ -108,3 +118,5 @@ Load a specification and sort endpoints by HTTP method:
 ```bash
 rtop -f ./openapi.json -s method
 ```
+
+>[!NOTE] Certain features are bound to break in windows

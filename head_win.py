@@ -145,6 +145,11 @@ class HeaderWindow:
         cp.update_panels()
         curses.doupdate()
 
+    def set_theme(self, theme: Theme) -> None:
+        """Update header window theme and repaint."""
+        self.theme = theme
+        self.render()
+
     def cleanup(self) -> None:
         self._win.clear()
         self._win.refresh()
