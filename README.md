@@ -119,4 +119,4 @@ Load a specification and sort endpoints by HTTP method:
 rtop -f ./openapi.json -s method
 ```
 
->[!NOTE] Certain features are bound to break in windows
+> Certain features are bound to break in windows
